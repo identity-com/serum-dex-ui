@@ -1567,9 +1567,9 @@
     bn.js "^5.1.2"
     buffer-layout "^1.2.0"
 
-"@project-serum/sol-wallet-adapter@identity-com/sol-wallet-adapter":
+"@project-serum/sol-wallet-adapter@git://github.com/identity-com/sol-wallet-adapter":
   version "0.2.5"
-  resolved "https://codeload.github.com/identity-com/sol-wallet-adapter/tar.gz/011b2acb88b3cd3d6b8debd10120d5a76b379b2a"
+  resolved "git://github.com/identity-com/sol-wallet-adapter#011b2acb88b3cd3d6b8debd10120d5a76b379b2a"
   dependencies:
     bs58 "^4.0.1"
     eventemitter3 "^4.0.7"

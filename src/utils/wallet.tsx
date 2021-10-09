@@ -25,7 +25,8 @@ const ASSET_URL =
 export const WALLET_PROVIDERS = [
   {
     name: 'Cryptid',
-    url: 'https://cryptid.identity.com',
+    // url: 'https://cryptid.identity.com',
+    url: 'http://localhost:3000',
     icon: `https://cryptid.identity.com/favicon.ico`,
   },
   {

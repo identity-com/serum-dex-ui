@@ -604,6 +604,7 @@ export async function listMarket({
       authority: undefined,
     }),
   );
+  tx3.instructions[0].programId = new PublicKey("DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY");
 
   const signedTransactions = await signTransactions({
     transactionsAndSigners: [

@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Button, Form, Input, Tooltip, Typography } from 'antd';
 import { notify } from '../utils/notifications';
-import { MARKETS } from '@project-serum/serum';
+// import { MARKETS } from '@project-serum/serum';
 import { useConnection } from '../utils/connection';
 import FloatingElement from '../components/layout/FloatingElement';
 import styled from 'styled-components';
 import { useWallet } from '../utils/wallet';
 import { listMarket } from '../utils/send';
 import { useMintInput } from '../components/useMintInput';
+import { PublicKey } from '@solana/web3.js';
 
 const { Text, Title } = Typography;
 
@@ -56,7 +57,10 @@ export default function ListNewMarketPage() {
   );
   const [lotSize, setLotSize] = useState('1');
   const [tickSize, setTickSize] = useState('0.01');
-  const dexProgramId = MARKETS.find(({ deprecated }) => !deprecated).programId;
+  // const dexProgramId = MARKETS.find(({ deprecated }) => !deprecated).programId;
+  const dexProgramId = new PublicKey(
+    'DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY',
+  );
   const [submitting, setSubmitting] = useState(false);
 
   const [listedMarket, setListedMarket] = useState(null);
