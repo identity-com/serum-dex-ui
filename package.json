@@ -11,7 +11,7 @@
     "@project-serum/awesome-serum": "1.0.1",
     "@project-serum/pool": "0.2.2",
     "@project-serum/serum": "^0.13.58",
-    "@project-serum/sol-wallet-adapter": "^0.2.0",
+    "@project-serum/sol-wallet-adapter": "identity-com/sol-wallet-adapter",
     "@solana/spl-name-service": "^0.1.2",
     "@solana/spl-token": "^0.1.6",
     "@solana/web3.js": "^1.22.0",
@@ -44,8 +44,8 @@
     "typescript": "^3.9.7"
   },
   "scripts": {
-    "predeploy": "git pull --ff-only && yarn && yarn build",
-    "deploy": "gh-pages -d build",
+    "predeploy": "yarn build",
+    "deploy": "STAGE=${STAGE:-dev} etc/deploy/deploy-site.sh",
     "start": "craco start",
     "build": "craco build",
     "test": "craco test",

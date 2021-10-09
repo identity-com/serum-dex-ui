@@ -582,6 +582,9 @@ export async function listMarket({
       space: 65536 + 12,
       programId: dexProgramId,
     }),
+  );
+  const tx3 = new Transaction();
+  tx3.add(
     DexInstructions.initializeMarket({
       market: market.publicKey,
       requestQueue: requestQueue.publicKey,
@@ -609,11 +612,16 @@ export async function listMarket({
         transaction: tx2,
         signers: [market, requestQueue, eventQueue, bids, asks],
       },
+      {
+        transaction: tx3,
+        signers: [],
+      },
     ],
     wallet,
     connection,
   });
   for (let signedTransaction of signedTransactions) {
+    console.log('sending');
     await sendSignedTransaction({
       signedTransaction,
       connection,
@@ -707,13 +715,23 @@ export async function signTransactions({
       wallet.publicKey,
       ...signers.map((s) => s.publicKey),
     );
-    if (signers?.length > 0) {
-      transaction.partialSign(...signers);
-    }
+    // if (signers?.length > 0) {
+    //   transaction.partialSign(...signers);
+    // }
   });
-  return await wallet.signAllTransactions(
+  const signedTransactions = await wallet.signAllTransactions(
     transactionsAndSigners.map(({ transaction }) => transaction),
   );
+  
+  return signedTransactions.map((tx, index) => {
+    const signers = transactionsAndSigners[index].signers || []
+
+    if (signers?.length > 0) {
+      tx.partialSign(...signers);
+    }
+    
+    return tx;
+  })
 }
 
 export async function sendSignedTransaction({
@@ -776,6 +794,7 @@ export async function sendSignedTransaction({
         for (let i = simulateResult.logs.length - 1; i >= 0; --i) {
           const line = simulateResult.logs[i];
           if (line.startsWith('Program log: ')) {
+            console.log(line);
             throw new Error(
               'Transaction failed: ' + line.slice('Program log: '.length),
             );

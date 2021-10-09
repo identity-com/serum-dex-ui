@@ -1,4 +1,4 @@
-import {Market, MARKETS, OpenOrders, Orderbook, TOKEN_MINTS, TokenInstructions,} from '@project-serum/serum';
+import {Market, MARKETS as LIB_MARKETS, OpenOrders, Orderbook, TOKEN_MINTS, TokenInstructions,} from '@project-serum/serum';
 import {PublicKey} from '@solana/web3.js';
 import React, {useContext, useEffect, useState} from 'react';
 import {divideBnToNumber, floorToDecimal, getTokenMultiplierFromDecimals, sleep, useLocalStorageState,} from './utils';
@@ -26,6 +26,10 @@ import BonfidaApi from './bonfidaConnector';
 
 // Used in debugging, should be false in production
 const _IGNORE_DEPRECATED = false;
+
+const EXTRA_MARKETS = []
+
+const MARKETS: MarketInfo[] = [...LIB_MARKETS, ...EXTRA_MARKETS]
 
 export const USE_MARKETS: MarketInfo[] = _IGNORE_DEPRECATED
   ? MARKETS.map((m) => ({ ...m, deprecated: false }))
