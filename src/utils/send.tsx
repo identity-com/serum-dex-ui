@@ -691,10 +691,14 @@ export async function signTransaction({
     await connection.getRecentBlockhash('max')
   ).blockhash;
   transaction.setSigners(wallet.publicKey, ...signers.map((s) => s.publicKey));
+  
+  const signedTransaction = await wallet.signTransaction(transaction);
+
   if (signers.length > 0) {
-    transaction.partialSign(...signers);
+    signedTransaction.partialSign(...signers);
   }
-  return await wallet.signTransaction(transaction);
+  
+  return signedTransaction;
 }
 
 export async function signTransactions({

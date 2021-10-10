@@ -11,7 +11,7 @@ import tuple from 'immutable-tuple';
 import BN from 'bn.js';
 import {useMemo} from 'react';
 
-const TOKEN_MINTS = [
+export const TOKEN_MINTS = [
   {
     address: new PublicKey('H9PDyuBsar5NvaEfAThVqPymQcxUpJhm3CFRakFa6TSp'),
     name: 'dCVC'

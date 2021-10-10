@@ -1,4 +1,4 @@
-import {Market, MARKETS as LIB_MARKETS, OpenOrders, Orderbook, TOKEN_MINTS, TokenInstructions,} from '@project-serum/serum';
+import {Market, MARKETS as LIB_MARKETS, OpenOrders, Orderbook, TokenInstructions,} from '@project-serum/serum';
 import {PublicKey} from '@solana/web3.js';
 import React, {useContext, useEffect, useState} from 'react';
 import {divideBnToNumber, floorToDecimal, getTokenMultiplierFromDecimals, sleep, useLocalStorageState,} from './utils';
@@ -8,7 +8,7 @@ import {useWallet} from './wallet';
 import tuple from 'immutable-tuple';
 import {notify} from './notifications';
 import BN from 'bn.js';
-import {getTokenAccountInfo, parseTokenAccountData, useMintInfos,} from './tokens';
+import { getTokenAccountInfo, parseTokenAccountData, TOKEN_MINTS, useMintInfos } from './tokens';
 import {
   Balances,
   CustomMarketInfo,
@@ -27,9 +27,14 @@ import BonfidaApi from './bonfidaConnector';
 // Used in debugging, should be false in production
 const _IGNORE_DEPRECATED = false;
 
-const EXTRA_MARKETS = []
+const EXTRA_MARKETS: MarketInfo[] = [{
+  name: 'SOL/dUSD',
+  programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
+  address: new PublicKey('3kxTkVUsKckAuJXsWRKj3EXUc2ZGcSU1XAX7CfBr4bhs'),
+  deprecated: false
+}]
 
-const MARKETS: MarketInfo[] = [...LIB_MARKETS, ...EXTRA_MARKETS]
+const MARKETS: MarketInfo[] = [...EXTRA_MARKETS, ...LIB_MARKETS]
 
 export const USE_MARKETS: MarketInfo[] = _IGNORE_DEPRECATED
   ? MARKETS.map((m) => ({ ...m, deprecated: false }))
