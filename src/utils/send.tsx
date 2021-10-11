@@ -51,6 +51,7 @@ export async function createTokenAccountTransaction({
     TOKEN_PROGRAM_ID,
     mintPublicKey,
     wallet.publicKey,
+    true,
   );
   const transaction = new Transaction();
   transaction.add(
@@ -401,6 +402,7 @@ export async function placeOrder({
   const transaction = new Transaction();
   const signers: Account[] = [];
 
+  const initialTransaction = new Transaction();
   if (!baseCurrencyAccount) {
     const {
       transaction: createAccountTransaction,
@@ -410,7 +412,7 @@ export async function placeOrder({
       wallet,
       mintPublicKey: market.baseMintAddress,
     });
-    transaction.add(createAccountTransaction);
+    initialTransaction.add(createAccountTransaction);
     baseCurrencyAccount = newAccountPubkey;
   }
   if (!quoteCurrencyAccount) {
@@ -422,7 +424,7 @@ export async function placeOrder({
       wallet,
       mintPublicKey: market.quoteMintAddress,
     });
-    transaction.add(createAccountTransaction);
+    initialTransaction.add(createAccountTransaction);
     quoteCurrencyAccount = newAccountPubkey;
   }
 
@@ -463,13 +465,47 @@ export async function placeOrder({
   transaction.add(market.makeMatchOrdersTransaction(5));
   signers.push(...placeOrderSigners);
 
-  return await sendTransaction({
-    transaction,
-    wallet,
-    connection,
-    signers,
-    sendingMessage: 'Sending order...',
-  });
+  if (initialTransaction.instructions.length > 0){
+    const transactions = await signTransactions({
+      transactionsAndSigners: [
+        {
+          transaction: initialTransaction,
+        },
+        {
+          transaction,
+          signers,
+        }
+      ],
+      wallet,
+      connection,
+    });
+    if (transactions.length !== 2){
+      notify({
+        message: `Transaction count of ${formattedTickSize} unexpected, expected 2`,
+        type: 'error',
+      });
+      return;
+    }
+    await sendSignedTransaction({
+      signedTransaction: transactions[0],
+      connection,
+      sendingMessage: 'Creating needed token accounts...',
+    });
+    return await sendSignedTransaction({
+      signedTransaction: transactions[1],
+      connection,
+      sendingMessage: 'Sending order...',
+    })
+  }
+  else {
+    return await sendTransaction({
+      transaction,
+      wallet,
+      connection,
+      signers,
+      sendingMessage: 'Sending order...',
+    });
+  }
 }
 
 export async function listMarket({
