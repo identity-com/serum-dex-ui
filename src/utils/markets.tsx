@@ -46,7 +46,7 @@ const EXTRA_MARKETS: MarketInfo[] = [{
   deprecated: false
 }]
 
-const MARKETS: MarketInfo[] = [...EXTRA_MARKETS, ...LIB_MARKETS]
+const MARKETS: MarketInfo[] = [...EXTRA_MARKETS]//, ...LIB_MARKETS]
 
 export const USE_MARKETS: MarketInfo[] = _IGNORE_DEPRECATED
   ? MARKETS.map((m) => ({ ...m, deprecated: false }))
@@ -180,7 +180,7 @@ const _SLOW_REFRESH_INTERVAL = 5 * 1000;
 const _FAST_REFRESH_INTERVAL = 1000;
 
 export const DEFAULT_MARKET = USE_MARKETS.find(
-  ({ name, deprecated }) => name === 'SRM/USDT' && !deprecated,
+  ({ name, deprecated }) => name === 'SOL/dUSD' && !deprecated,
 );
 
 export function getMarketDetails(
