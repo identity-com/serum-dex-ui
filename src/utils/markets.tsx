@@ -1,4 +1,4 @@
-import {Market, MARKETS, OpenOrders, Orderbook, TOKEN_MINTS, TokenInstructions,} from '@project-serum/serum';
+import {Market, MARKETS as LIB_MARKETS, OpenOrders, Orderbook, TokenInstructions,} from '@project-serum/serum';
 import {PublicKey} from '@solana/web3.js';
 import React, {useContext, useEffect, useState} from 'react';
 import {divideBnToNumber, floorToDecimal, getTokenMultiplierFromDecimals, sleep, useLocalStorageState,} from './utils';
@@ -8,7 +8,7 @@ import {useWallet} from './wallet';
 import tuple from 'immutable-tuple';
 import {notify} from './notifications';
 import BN from 'bn.js';
-import {getTokenAccountInfo, parseTokenAccountData, useMintInfos,} from './tokens';
+import { getTokenAccountInfo, parseTokenAccountData, TOKEN_MINTS, useMintInfos } from './tokens';
 import {
   Balances,
   CustomMarketInfo,
@@ -26,6 +26,27 @@ import BonfidaApi from './bonfidaConnector';
 
 // Used in debugging, should be false in production
 const _IGNORE_DEPRECATED = false;
+
+const EXTRA_MARKETS: MarketInfo[] = [{
+  name: 'SOL/dUSD',
+  programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
+  address: new PublicKey('3kxTkVUsKckAuJXsWRKj3EXUc2ZGcSU1XAX7CfBr4bhs'),
+  deprecated: false
+},
+  {
+    name: 'dCVC/dUSD',
+    programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
+    address: new PublicKey('B8yd3uJHjDFfTTPrhiNAJXpEXF38ZKg9fym3SuE2Ug8Y'),
+    deprecated: false
+  },
+  {
+  name: 'SOL/dCVC',
+  programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
+  address: new PublicKey('4j4Y8WmuGJtfDzk5MJJSAGS1oievxzNFHbCjPsWfWrUw'),
+  deprecated: false
+}]
+
+const MARKETS: MarketInfo[] = [...EXTRA_MARKETS]//, ...LIB_MARKETS]
 
 export const USE_MARKETS: MarketInfo[] = _IGNORE_DEPRECATED
   ? MARKETS.map((m) => ({ ...m, deprecated: false }))
@@ -159,7 +180,7 @@ const _SLOW_REFRESH_INTERVAL = 5 * 1000;
 const _FAST_REFRESH_INTERVAL = 1000;
 
 export const DEFAULT_MARKET = USE_MARKETS.find(
-  ({ name, deprecated }) => name === 'SRM/USDT' && !deprecated,
+  ({ name, deprecated }) => name === 'SOL/dUSD' && !deprecated,
 );
 
 export function getMarketDetails(

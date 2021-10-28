@@ -24,6 +24,12 @@ const ASSET_URL =
   'https://cdn.jsdelivr.net/gh/solana-labs/oyster@main/assets/wallets';
 export const WALLET_PROVIDERS = [
   {
+    name: 'Cryptid',
+    url: 'https://cryptid.identity.com',
+    // url: 'http://localhost:3000',
+    icon: `https://cryptid.identity.com/favicon.ico`,
+  },
+  {
     name: 'sollet.io',
     url: 'https://www.sollet.io',
     icon: `${ASSET_URL}/sollet.svg`,
@@ -88,6 +94,7 @@ export function WalletProvider({ children }) {
         wallet = new (provider.adapter || Wallet)(
           providerUrl,
           endpoint,
+          true
         ) as WalletAdapter;
         setWallet(wallet);
       };

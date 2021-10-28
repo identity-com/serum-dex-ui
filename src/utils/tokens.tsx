@@ -2,7 +2,7 @@ import * as BufferLayout from 'buffer-layout';
 import {AccountInfo, Connection, PublicKey} from '@solana/web3.js';
 import {WRAPPED_SOL_MINT} from '@project-serum/serum/lib/token-instructions';
 import {TokenAccount} from './types';
-import {TOKEN_MINTS} from '@project-serum/serum';
+import {TOKEN_MINTS as LIB_TOKEN_MINTS} from '@project-serum/serum';
 import {useAllMarkets, useCustomMarkets, useTokenAccounts} from './markets';
 import {getMultipleSolanaAccounts} from './send';
 import {useConnection} from './connection';
@@ -10,6 +10,18 @@ import {useAsyncData} from './fetch-loop';
 import tuple from 'immutable-tuple';
 import BN from 'bn.js';
 import {useMemo} from 'react';
+
+export const TOKEN_MINTS = [
+  {
+    address: new PublicKey('H9PDyuBsar5NvaEfAThVqPymQcxUpJhm3CFRakFa6TSp'),
+    name: 'dCVC'
+  },
+  {
+    address: new PublicKey('97va9dqNvQxsgQNaH5BRj6QWbcvpnrwEGLZZp2P4VBwZ'),
+    name: 'dUSDC'
+  },
+  ...LIB_TOKEN_MINTS,
+]
 
 export const ACCOUNT_LAYOUT = BufferLayout.struct([
   BufferLayout.blob(32, 'mint'),

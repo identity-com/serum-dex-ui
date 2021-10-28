@@ -51,6 +51,7 @@ export async function createTokenAccountTransaction({
     TOKEN_PROGRAM_ID,
     mintPublicKey,
     wallet.publicKey,
+    true,
   );
   const transaction = new Transaction();
   transaction.add(
@@ -401,6 +402,7 @@ export async function placeOrder({
   const transaction = new Transaction();
   const signers: Account[] = [];
 
+  const initialTransaction = new Transaction();
   if (!baseCurrencyAccount) {
     const {
       transaction: createAccountTransaction,
@@ -410,7 +412,7 @@ export async function placeOrder({
       wallet,
       mintPublicKey: market.baseMintAddress,
     });
-    transaction.add(createAccountTransaction);
+    initialTransaction.add(createAccountTransaction);
     baseCurrencyAccount = newAccountPubkey;
   }
   if (!quoteCurrencyAccount) {
@@ -422,7 +424,7 @@ export async function placeOrder({
       wallet,
       mintPublicKey: market.quoteMintAddress,
     });
-    transaction.add(createAccountTransaction);
+    initialTransaction.add(createAccountTransaction);
     quoteCurrencyAccount = newAccountPubkey;
   }
 
@@ -463,13 +465,47 @@ export async function placeOrder({
   transaction.add(market.makeMatchOrdersTransaction(5));
   signers.push(...placeOrderSigners);
 
-  return await sendTransaction({
-    transaction,
-    wallet,
-    connection,
-    signers,
-    sendingMessage: 'Sending order...',
-  });
+  if (initialTransaction.instructions.length > 0){
+    const transactions = await signTransactions({
+      transactionsAndSigners: [
+        {
+          transaction: initialTransaction,
+        },
+        {
+          transaction,
+          signers,
+        }
+      ],
+      wallet,
+      connection,
+    });
+    if (transactions.length !== 2){
+      notify({
+        message: `Transaction count of ${formattedTickSize} unexpected, expected 2`,
+        type: 'error',
+      });
+      return;
+    }
+    await sendSignedTransaction({
+      signedTransaction: transactions[0],
+      connection,
+      sendingMessage: 'Creating needed token accounts...',
+    });
+    return await sendSignedTransaction({
+      signedTransaction: transactions[1],
+      connection,
+      sendingMessage: 'Sending order...',
+    })
+  }
+  else {
+    return await sendTransaction({
+      transaction,
+      wallet,
+      connection,
+      signers,
+      sendingMessage: 'Sending order...',
+    });
+  }
 }
 
 export async function listMarket({
@@ -582,6 +618,9 @@ export async function listMarket({
       space: 65536 + 12,
       programId: dexProgramId,
     }),
+  );
+  const tx3 = new Transaction();
+  tx3.add(
     DexInstructions.initializeMarket({
       market: market.publicKey,
       requestQueue: requestQueue.publicKey,
@@ -601,6 +640,7 @@ export async function listMarket({
       authority: undefined,
     }),
   );
+  tx3.instructions[0].programId = new PublicKey("DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY");
 
   const signedTransactions = await signTransactions({
     transactionsAndSigners: [
@@ -609,11 +649,16 @@ export async function listMarket({
         transaction: tx2,
         signers: [market, requestQueue, eventQueue, bids, asks],
       },
+      {
+        transaction: tx3,
+        signers: [],
+      },
     ],
     wallet,
     connection,
   });
   for (let signedTransaction of signedTransactions) {
+    console.log('sending');
     await sendSignedTransaction({
       signedTransaction,
       connection,
@@ -682,10 +727,14 @@ export async function signTransaction({
     await connection.getRecentBlockhash('max')
   ).blockhash;
   transaction.setSigners(wallet.publicKey, ...signers.map((s) => s.publicKey));
+  
+  const signedTransaction = await wallet.signTransaction(transaction);
+
   if (signers.length > 0) {
-    transaction.partialSign(...signers);
+    signedTransaction.partialSign(...signers);
   }
-  return await wallet.signTransaction(transaction);
+  
+  return signedTransaction;
 }
 
 export async function signTransactions({
@@ -707,13 +756,23 @@ export async function signTransactions({
       wallet.publicKey,
       ...signers.map((s) => s.publicKey),
     );
-    if (signers?.length > 0) {
-      transaction.partialSign(...signers);
-    }
+    // if (signers?.length > 0) {
+    //   transaction.partialSign(...signers);
+    // }
   });
-  return await wallet.signAllTransactions(
+  const signedTransactions = await wallet.signAllTransactions(
     transactionsAndSigners.map(({ transaction }) => transaction),
   );
+  
+  return signedTransactions.map((tx, index) => {
+    const signers = transactionsAndSigners[index].signers || []
+
+    if (signers?.length > 0) {
+      tx.partialSign(...signers);
+    }
+    
+    return tx;
+  })
 }
 
 export async function sendSignedTransaction({
@@ -776,6 +835,7 @@ export async function sendSignedTransaction({
         for (let i = simulateResult.logs.length - 1; i >= 0; --i) {
           const line = simulateResult.logs[i];
           if (line.startsWith('Program log: ')) {
+            console.log(simulateResult.logs);
             throw new Error(
               'Transaction failed: ' + line.slice('Program log: '.length),
             );
