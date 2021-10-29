@@ -27,24 +27,26 @@ import BonfidaApi from './bonfidaConnector';
 // Used in debugging, should be false in production
 const _IGNORE_DEPRECATED = false;
 
-const EXTRA_MARKETS: MarketInfo[] = [{
-  name: 'SOL/dUSD',
-  programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
-  address: new PublicKey('3kxTkVUsKckAuJXsWRKj3EXUc2ZGcSU1XAX7CfBr4bhs'),
-  deprecated: false
-},
-  {
-    name: 'dCVC/dUSD',
-    programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
-    address: new PublicKey('B8yd3uJHjDFfTTPrhiNAJXpEXF38ZKg9fym3SuE2Ug8Y'),
-    deprecated: false
-  },
-  {
-  name: 'SOL/dCVC',
-  programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
-  address: new PublicKey('4j4Y8WmuGJtfDzk5MJJSAGS1oievxzNFHbCjPsWfWrUw'),
-  deprecated: false
-}]
+const EXTRA_MARKETS: MarketInfo[] = [
+  // {
+  //   name: 'SOL/dUSD',
+  //   programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
+  //   address: new PublicKey('3kxTkVUsKckAuJXsWRKj3EXUc2ZGcSU1XAX7CfBr4bhs'),
+  //   deprecated: false
+  // },
+  // {
+  //   name: 'dCVC/dUSD',
+  //   programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
+  //   address: new PublicKey('B8yd3uJHjDFfTTPrhiNAJXpEXF38ZKg9fym3SuE2Ug8Y'),
+  //   deprecated: false
+  // },
+  // {
+  //   name: 'SOL/dCVC',
+  //   programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
+  //   address: new PublicKey('4j4Y8WmuGJtfDzk5MJJSAGS1oievxzNFHbCjPsWfWrUw'),
+  //   deprecated: false
+  // },
+]
 
 const MARKETS: MarketInfo[] = [...EXTRA_MARKETS]//, ...LIB_MARKETS]
 

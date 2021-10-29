@@ -648,7 +648,16 @@ export async function listMarket({
       gatekeeper: gatekeeperNetwork,
     }),
   );
-  tx3.instructions[0].programId = new PublicKey("DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY");
+  tx3.instructions[0].keys = [
+    {
+      pubkey: new PublicKey("DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY"),
+      isSigner: false,
+      isWritable: false,
+    },
+    ...tx3.instructions[0].keys,
+  ];
+
+  tx3.instructions[0].programId = new PublicKey("DQJPbP4enjKjKQaWMZjq6dSJYLJeMpY1YPCEZRWKDECb");
 
   const signedTransactions = await signTransactions({
     transactionsAndSigners: [
