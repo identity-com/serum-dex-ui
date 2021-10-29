@@ -28,11 +28,14 @@ import {
   TokenInstructions,
 } from '@project-serum/serum';
 import { SelectedTokenAccounts, TokenAccount } from './types';
-import { Order } from '@project-serum/serum/lib/market';
+import { Order, OrderParams } from '@project-serum/serum/lib/market';
 import { Buffer } from 'buffer';
 import assert from 'assert';
 import { struct } from 'superstruct';
 import { WalletAdapter } from '../wallet-adapters';
+import { findGatewayToken } from '@identity.com/solana-gateway-ts';
+
+const gatekeeperNetwork: PublicKey = new PublicKey("tgnuXXNMDLK8dy7Xm1TdeGyc95MDym4bvAQCwcW21Bf");
 
 export async function createTokenAccountTransaction({
   connection,
@@ -436,7 +439,11 @@ export async function placeOrder({
     });
     return;
   }
-  const params = {
+  const gatewayToken = await findGatewayToken(connection, owner, gatekeeperNetwork);
+  if (!gatewayToken){
+    throw new Error(`No On-Chain gateway token for \`${owner.toBase58()}\``);
+  }
+  const params: OrderParams<PublicKey> = {
     owner,
     payer,
     side,
@@ -444,6 +451,7 @@ export async function placeOrder({
     size,
     orderType,
     feeDiscountPubkey: feeDiscountPubkey || null,
+    gatewayToken: gatewayToken.publicKey,
   };
   console.log(params);
 
@@ -637,7 +645,7 @@ export async function listMarket({
       vaultSignerNonce,
       quoteDustThreshold,
       programId: dexProgramId,
-      authority: undefined,
+      gatekeeper: gatekeeperNetwork,
     }),
   );
   tx3.instructions[0].programId = new PublicKey("DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY");

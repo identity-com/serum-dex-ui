@@ -6,11 +6,12 @@
   "dependencies": {
     "@ant-design/icons": "^4.2.1",
     "@craco/craco": "^5.6.4",
+    "@identity.com/solana-gateway-ts": "^0.3.3",
     "@ledgerhq/hw-transport-webusb": "^5.41.0",
     "@project-serum/associated-token": "0.1.0",
     "@project-serum/awesome-serum": "1.0.1",
     "@project-serum/pool": "0.2.2",
-    "@project-serum/serum": "^0.13.58",
+    "@project-serum/serum": "npm:@civic/serum@^0.13.54",
     "@project-serum/sol-wallet-adapter": "git://github.com/identity-com/sol-wallet-adapter",
     "@solana/spl-name-service": "^0.1.2",
     "@solana/spl-token": "^0.1.8",
