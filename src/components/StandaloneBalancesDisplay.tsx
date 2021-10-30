@@ -41,7 +41,7 @@ const ActionButton = styled(Button)`
 `;
 
 export default function StandaloneBalancesDisplay() {
-  const { baseCurrency, quoteCurrency, market } = useMarket();
+  const { baseCurrency, quoteCurrency, market, proxy } = useMarket();
   const balances = useBalances();
   const openOrdersAccount = useSelectedOpenOrdersAccount(true);
   const connection = useSendConnection();
@@ -71,6 +71,14 @@ export default function StandaloneBalancesDisplay() {
       notify({
         message: 'Error settling funds',
         description: 'market is undefined',
+        type: 'error',
+      });
+      return;
+    }
+    if (!proxy) {
+      notify({
+        message: 'Error settling funds',
+        description: 'proxy is undefined',
         type: 'error',
       });
       return;
@@ -108,6 +116,7 @@ export default function StandaloneBalancesDisplay() {
         wallet,
         baseCurrencyAccount,
         quoteCurrencyAccount,
+        proxy,
         usdcRef,
         usdtRef,
       });
@@ -126,6 +135,7 @@ export default function StandaloneBalancesDisplay() {
         AUTO_SETTLE_DISABLED_OVERRIDE ||
         !wallet ||
         !market ||
+        !proxy ||
         !openOrdersAccount ||
         !baseCurrencyAccount ||
         !quoteCurrencyAccount ||
@@ -152,6 +162,7 @@ export default function StandaloneBalancesDisplay() {
           wallet,
           baseCurrencyAccount,
           quoteCurrencyAccount,
+          proxy,
           usdcRef,
           usdtRef,
         });

@@ -9,6 +9,10 @@ import { useSendConnection } from '../../utils/connection';
 import { notify } from '../../utils/notifications';
 import { DeleteOutlined } from '@ant-design/icons';
 import { OrderWithMarketAndMarketName } from '../../utils/types';
+import { Logger, MarketProxyBuilder, OpenOrdersPda, ReferralFees } from '@project-serum/serum';
+import { Identity, useProxy } from '../../utils/proxy';
+import { findGatewayToken } from '@identity.com/solana-gateway-ts';
+import { GATEKEEPER_NETWORK } from '../../utils/markets';
 
 const CancelButton = styled(Button)`
   color: #f23b69;
@@ -31,6 +35,7 @@ export default function OpenOrderTable({
   let { wallet } = useWallet();
   let connection = useSendConnection();
 
+  const { proxyProgramId } = useProxy();
   const [cancelId, setCancelId] = useState(null);
 
   async function cancel(order) {
@@ -40,11 +45,36 @@ export default function OpenOrderTable({
         return null;
       }
 
+      const foundGatewayToken = await findGatewayToken(connection, wallet.publicKey, GATEKEEPER_NETWORK);
+
+      if (!foundGatewayToken) {
+        return null;
+      }
+      
+      const proxy = await (new MarketProxyBuilder()
+        .middleware(
+          new OpenOrdersPda({
+            proxyProgramId,
+            dexProgramId: order.market.programId,
+          })
+        )
+        .middleware(new ReferralFees())
+        .middleware(new Identity(foundGatewayToken.publicKey))
+        .middleware(new Logger()))
+        .load({
+          connection,
+          market: order.market.address,
+          options: {},
+          dexProgramId: order.market.programId,
+          proxyProgramId,
+        });
+
       await cancelOrder({
         order,
         market: order.market,
         connection,
         wallet,
+        proxy,
       });
     } catch (e) {
       notify({

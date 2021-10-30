@@ -1,4 +1,12 @@
-import {Market, MARKETS as LIB_MARKETS, OpenOrders, Orderbook, TokenInstructions,} from '@project-serum/serum';
+import {
+  Logger,
+  Market,
+  MarketProxy, MarketProxyBuilder,
+  MARKETS as LIB_MARKETS,
+  OpenOrders, OpenOrdersPda,
+  Orderbook, ReferralFees,
+  TokenInstructions,
+} from '@project-serum/serum';
 import {PublicKey} from '@solana/web3.js';
 import React, {useContext, useEffect, useState} from 'react';
 import {divideBnToNumber, floorToDecimal, getTokenMultiplierFromDecimals, sleep, useLocalStorageState,} from './utils';
@@ -23,30 +31,42 @@ import {
 import {WRAPPED_SOL_MINT} from '@project-serum/serum/lib/token-instructions';
 import {Order} from '@project-serum/serum/lib/market';
 import BonfidaApi from './bonfidaConnector';
+import { Identity, useProxy } from './proxy';
+import { findGatewayToken } from '@identity.com/solana-gateway-ts';
 
 // Used in debugging, should be false in production
 const _IGNORE_DEPRECATED = false;
 
 const EXTRA_MARKETS: MarketInfo[] = [
-  // {
-  //   name: 'SOL/dUSD',
-  //   programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
-  //   address: new PublicKey('3kxTkVUsKckAuJXsWRKj3EXUc2ZGcSU1XAX7CfBr4bhs'),
-  //   deprecated: false
-  // },
-  // {
-  //   name: 'dCVC/dUSD',
-  //   programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
-  //   address: new PublicKey('B8yd3uJHjDFfTTPrhiNAJXpEXF38ZKg9fym3SuE2Ug8Y'),
-  //   deprecated: false
-  // },
-  // {
-  //   name: 'SOL/dCVC',
-  //   programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
-  //   address: new PublicKey('4j4Y8WmuGJtfDzk5MJJSAGS1oievxzNFHbCjPsWfWrUw'),
-  //   deprecated: false
-  // },
+  {
+    name: 'SOL/dUSD',
+    programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
+    address: new PublicKey('3kxTkVUsKckAuJXsWRKj3EXUc2ZGcSU1XAX7CfBr4bhs'),
+    deprecated: false
+  },
+  {
+    name: 'dCVC/dUSD',
+    programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
+    address: new PublicKey('B8yd3uJHjDFfTTPrhiNAJXpEXF38ZKg9fym3SuE2Ug8Y'),
+    deprecated: false
+  },
+  {
+    name: 'SOL/dCVC',
+    programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
+    address: new PublicKey('4j4Y8WmuGJtfDzk5MJJSAGS1oievxzNFHbCjPsWfWrUw'),
+    deprecated: false
+  },
+  {
+    name: 'Gated dCVC/dUSD',
+    programId: new PublicKey('DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY'),
+    address: new PublicKey('2iLuoUWFLNxsjmK1aH3CmaACUsX6qPLjoSGrHhzX6pbR'),
+    deprecated: false
+  },
 ]
+
+const DEFAULT_MARKET_NAME = 'Gated dCVC/dUSD';
+
+export const GATEKEEPER_NETWORK = new PublicKey("tgnuXXNMDLK8dy7Xm1TdeGyc95MDym4bvAQCwcW21Bf");
 
 const MARKETS: MarketInfo[] = [...EXTRA_MARKETS]//, ...LIB_MARKETS]
 
@@ -182,7 +202,7 @@ const _SLOW_REFRESH_INTERVAL = 5 * 1000;
 const _FAST_REFRESH_INTERVAL = 1000;
 
 export const DEFAULT_MARKET = USE_MARKETS.find(
-  ({ name, deprecated }) => name === 'SOL/dUSD' && !deprecated,
+  ({ name, deprecated }) => name === DEFAULT_MARKET_NAME && !deprecated,
 );
 
 export function getMarketDetails(
@@ -221,7 +241,7 @@ export function getMarketDetails(
 export function useCustomMarkets() {
   const [customMarkets, setCustomMarkets] = useLocalStorageState<
     CustomMarketInfo[]
-  >('customMarkets', []);
+    >('customMarkets', []);
   return { customMarkets, setCustomMarkets };
 }
 
@@ -229,10 +249,26 @@ export function MarketProvider({ marketAddress, setMarketAddress, children }) {
   const { customMarkets, setCustomMarkets } = useCustomMarkets();
 
   const address = marketAddress && new PublicKey(marketAddress);
+  const { wallet, connected } = useWallet()
   const connection = useConnection();
   const marketInfos = getMarketInfos(customMarkets);
   const marketInfo =
     address && marketInfos.find((market) => market.address.equals(address));
+
+  const { proxyProgramId } = useProxy();
+
+  const [gatewayToken, setGatewayToken] = useState<PublicKey|undefined>()
+  const identityMw = React.useRef<Identity | undefined>();
+
+  useEffect(() => {
+    if (!wallet || !wallet.publicKey) return;
+    (async () => {
+      const foundGatewayToken = await findGatewayToken(connection, wallet.publicKey, GATEKEEPER_NETWORK);
+      if (foundGatewayToken && foundGatewayToken.publicKey.toBase58() !== gatewayToken?.toBase58()) {
+        setGatewayToken(foundGatewayToken.publicKey)
+      }
+    })();
+  }, [marketInfo, wallet, setGatewayToken, gatewayToken, connection])
 
   // Replace existing market with a non-deprecated one on first load
   useEffect(() => {
@@ -246,6 +282,24 @@ export function MarketProvider({ marketAddress, setMarketAddress, children }) {
   }, []);
 
   const [market, setMarket] = useState<Market | null>();
+  const [proxy, setProxy] = useState<MarketProxy | null>();
+  const prevIdentity = React.useRef<null | string>(null);
+
+  useEffect(() => {
+    if (!marketInfo || !marketInfo.address || !identityMw.current) {
+      return;
+    }
+
+    if (!connected && prevIdentity.current) {
+      // there is no option to just remove middleware, so we will re-create a builder
+      prevIdentity.current = null;
+      identityMw.current.setToken(undefined);
+    } else if (gatewayToken && prevIdentity.current !== gatewayToken.toString()) {
+      prevIdentity.current = gatewayToken.toString();
+      identityMw.current.setToken(gatewayToken);
+    }
+  }, [connected, marketInfo, gatewayToken]);
+
   useEffect(() => {
     if (
       market &&
@@ -253,10 +307,6 @@ export function MarketProvider({ marketAddress, setMarketAddress, children }) {
       // @ts-ignore
       market._decoded.ownAddress?.equals(marketInfo?.address)
     ) {
-      return;
-    }
-    setMarket(null);
-    if (!marketInfo || !marketInfo.address) {
       notify({
         message: 'Error loading market',
         description: 'Please select a market from the dropdown',
@@ -264,8 +314,37 @@ export function MarketProvider({ marketAddress, setMarketAddress, children }) {
       });
       return;
     }
-    Market.load(connection, marketInfo.address, {}, marketInfo.programId)
-      .then(setMarket)
+    setMarket(null);
+    setMarket(null);
+    if (!marketInfo || !marketInfo.address) {
+      return;
+    }
+
+    if (!identityMw.current) {
+      identityMw.current = new Identity(gatewayToken)
+    }
+
+    new MarketProxyBuilder()
+      .middleware(
+        new OpenOrdersPda({
+          proxyProgramId,
+          dexProgramId: marketInfo.programId,
+        })
+      )
+      .middleware(new ReferralFees())
+      .middleware(identityMw.current)
+      .middleware(new Logger())
+      .load({
+        connection,
+        market: marketInfo.address,
+        options: {},
+        dexProgramId: marketInfo.programId,
+        proxyProgramId,
+      })
+      .then(proxy => {
+        setProxy(proxy);
+        setMarket(proxy.market);
+      })
       .catch((e) =>
         notify({
           message: 'Error loading market',
@@ -279,6 +358,7 @@ export function MarketProvider({ marketAddress, setMarketAddress, children }) {
   return (
     <MarketContext.Provider
       value={{
+        proxy,
         market,
         ...getMarketDetails(market, customMarkets),
         setMarketAddress,
@@ -423,19 +503,27 @@ export function useOrderbook(
 // Want the balances table to be fast-updating, dont want open orders to flicker
 // TODO: Update to use websocket
 export function useOpenOrdersAccounts(fast = false) {
-  const { market } = useMarket();
+  const { market, proxy } = useMarket();
   const { connected, wallet } = useWallet();
   const connection = useConnection();
   async function getOpenOrdersAccounts() {
     if (!connected || !wallet) {
       return null;
     }
-    if (!market) {
+    if (!market || !proxy) {
       return null;
     }
+
+    const openOrdersAddressKey = await OpenOrdersPda.openOrdersAddress(
+      market.address,
+      wallet.publicKey,
+      proxy.dexProgramId,
+      proxy.proxyProgramId
+    );
+
     return await market.findOpenOrdersAccountsForOwner(
       connection,
-      wallet.publicKey,
+      openOrdersAddressKey,
     );
   }
   return useAsyncData<OpenOrders[] | null>(
@@ -454,7 +542,7 @@ export function useSelectedOpenOrdersAccount(fast = false) {
 }
 
 export function useTokenAccounts(): [
-  TokenAccount[] | null | undefined,
+    TokenAccount[] | null | undefined,
   boolean,
 ] {
   const { connected, wallet } = useWallet();
@@ -592,20 +680,20 @@ export function useLocallyStoredFeeDiscountKey(): {
 export function useFeeDiscountKeys(): [
   (
     | {
-        pubkey: PublicKey;
-        feeTier: number;
-        balance: number;
-        mint: PublicKey;
-      }[]
+    pubkey: PublicKey;
+    feeTier: number;
+    balance: number;
+    mint: PublicKey;
+  }[]
     | null
     | undefined
-  ),
+    ),
   boolean,
 ] {
   const { market } = useMarket();
   const { connected, wallet } = useWallet();
-  const connection = useConnection();
-  const { setStoredFeeDiscountKey } = useLocallyStoredFeeDiscountKey();
+  // const connection = useConnection();
+  // const { setStoredFeeDiscountKey } = useLocallyStoredFeeDiscountKey();
   let getFeeDiscountKeys = async () => {
     if (!connected || !wallet) {
       return null;
@@ -613,14 +701,17 @@ export function useFeeDiscountKeys(): [
     if (!market) {
       return null;
     }
-    const feeDiscountKey = await market.findFeeDiscountKeys(
-      connection,
-      wallet.publicKey,
-    );
-    if (feeDiscountKey) {
-      setStoredFeeDiscountKey(feeDiscountKey[0].pubkey.toBase58());
-    }
-    return feeDiscountKey;
+
+    return null;
+    //
+    // const feeDiscountKey = await market.findFeeDiscountKeys(
+    //   connection,
+    //   wallet.publicKey,
+    // );
+    // if (feeDiscountKey) {
+    //   setStoredFeeDiscountKey(feeDiscountKey[0].pubkey.toBase58());
+    // }
+    // return feeDiscountKey;
   };
   return useAsyncData(
     getFeeDiscountKeys,
@@ -748,13 +839,14 @@ export const useAllOpenOrders = (): {
   loaded: boolean;
   refreshOpenOrders: () => void;
 } => {
+  const { proxyProgramId } = useProxy();
   const connection = useConnection();
   const { connected, wallet } = useWallet();
   const [loaded, setLoaded] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [openOrders, setOpenOrders] = useState<
     { orders: Order[]; marketAddress: string }[] | null | undefined
-  >(null);
+    >(null);
   const [lastRefresh, setLastRefresh] = useState(0);
 
   const refreshOpenOrders = () => {
@@ -779,9 +871,17 @@ export const useAllOpenOrders = (): {
               undefined,
               marketInfo.programId,
             );
+
+            const openOrdersAddressKey = await OpenOrdersPda.openOrdersAddress(
+              market.address,
+              wallet.publicKey,
+              marketInfo.programId,
+              proxyProgramId
+            );
+
             const orders = await market.loadOrdersForOwner(
               connection,
-              wallet?.publicKey,
+              openOrdersAddressKey,
               30000,
             );
             _openOrders.push({
@@ -799,7 +899,7 @@ export const useAllOpenOrders = (): {
       };
       getAllOpenOrders();
     }
-  }, [connection, connected, wallet, refresh]);
+  }, [connection, connected, wallet, refresh, proxyProgramId]);
   return {
     openOrders: openOrders,
     loaded: loaded,
@@ -816,6 +916,7 @@ export function useBalances(): Balances[] {
     openOrders && openOrders.baseTokenTotal && openOrders.baseTokenFree;
   const quoteExists =
     openOrders && openOrders.quoteTokenTotal && openOrders.quoteTokenFree;
+
   if (
     baseCurrency === 'UNKNOWN' ||
     quoteCurrency === 'UNKNOWN' ||
@@ -833,8 +934,8 @@ export function useBalances(): Balances[] {
       orders:
         baseExists && market && openOrders
           ? market.baseSplSizeToNumber(
-              openOrders.baseTokenTotal.sub(openOrders.baseTokenFree),
-            )
+            openOrders.baseTokenTotal.sub(openOrders.baseTokenFree),
+          )
           : null,
       openOrders,
       unsettled:
@@ -851,8 +952,8 @@ export function useBalances(): Balances[] {
       orders:
         quoteExists && market && openOrders
           ? market.quoteSplSizeToNumber(
-              openOrders.quoteTokenTotal.sub(openOrders.quoteTokenFree),
-            )
+            openOrders.quoteTokenTotal.sub(openOrders.quoteTokenFree),
+          )
           : null,
       unsettled:
         quoteExists && market && openOrders

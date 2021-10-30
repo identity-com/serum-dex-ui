@@ -177,7 +177,7 @@ function ConvertFormSubmit({
   wallet?: WalletAdapter;
   customMarkets: CustomMarketInfo[];
 }) {
-  const { market } = useMarket();
+  const { market, proxy } = useMarket();
   const [accounts] = useTokenAccounts();
   const balances = useBalances();
   const [fromAmount, setFromAmount] = useState<number | undefined>();
@@ -287,6 +287,7 @@ function ConvertFormSubmit({
         baseCurrencyAccount: baseCurrencyAccount?.pubkey,
         quoteCurrencyAccount: quoteCurrencyAccount?.pubkey,
         feeDiscountPubkey: feeDiscountKey,
+        proxy,
       });
     } catch (e) {
       console.warn(e);

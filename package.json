@@ -11,7 +11,7 @@
     "@project-serum/associated-token": "0.1.0",
     "@project-serum/awesome-serum": "1.0.1",
     "@project-serum/pool": "0.2.2",
-    "@project-serum/serum": "npm:@civic/serum@^0.13.54",
+    "@project-serum/serum": "^0.13.60",
     "@project-serum/sol-wallet-adapter": "git://github.com/identity-com/sol-wallet-adapter",
     "@solana/spl-name-service": "^0.1.2",
     "@solana/spl-token": "^0.1.8",
@@ -84,6 +84,7 @@
     }
   },
   "devDependencies": {
+    "@project-serum/anchor": "^0.18.0",
     "@types/ledgerhq__hw-transport": "^4.21.3",
     "@types/ledgerhq__hw-transport-webusb": "^4.70.1",
     "gh-pages": "^3.1.0",

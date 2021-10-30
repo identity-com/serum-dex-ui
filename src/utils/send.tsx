@@ -22,10 +22,13 @@ import BN from 'bn.js';
 import {
   DexInstructions,
   Market,
+  MarketProxy,
   OpenOrders,
+  OpenOrdersPda,
   parseInstructionErrorResponse,
   TOKEN_MINTS,
   TokenInstructions,
+  MARKET_STATE_LAYOUT_V3
 } from '@project-serum/serum';
 import { SelectedTokenAccounts, TokenAccount } from './types';
 import { Order, OrderParams } from '@project-serum/serum/lib/market';
@@ -33,9 +36,7 @@ import { Buffer } from 'buffer';
 import assert from 'assert';
 import { struct } from 'superstruct';
 import { WalletAdapter } from '../wallet-adapters';
-import { findGatewayToken } from '@identity.com/solana-gateway-ts';
-
-const gatekeeperNetwork: PublicKey = new PublicKey("tgnuXXNMDLK8dy7Xm1TdeGyc95MDym4bvAQCwcW21Bf");
+import { Identity } from './proxy';
 
 export async function createTokenAccountTransaction({
   connection,
@@ -81,6 +82,7 @@ export async function settleFunds({
   baseCurrencyAccount,
   quoteCurrencyAccount,
   sendNotification = true,
+  proxy,
   usdcRef = undefined,
   usdtRef = undefined,
 }: {
@@ -93,6 +95,7 @@ export async function settleFunds({
   sendNotification?: boolean;
   usdcRef?: PublicKey;
   usdtRef?: PublicKey;
+  proxy: MarketProxy;
 }): Promise<string | undefined> {
   if (
     !market ||
@@ -143,15 +146,17 @@ export async function settleFunds({
       referrerQuoteWallet = usdcRef;
     }
   }
-  const {
-    transaction: settleFundsTransaction,
-    signers: settleFundsSigners,
-  } = await market.makeSettleFundsTransaction(
-    connection,
-    openOrders,
-    baseCurrencyAccountPubkey,
-    quoteCurrencyAccountPubkey,
-    referrerQuoteWallet,
+
+  const settleFundsTransaction = new Transaction({ feePayer: wallet.publicKey });
+  settleFundsTransaction.add(
+    proxy.instruction.settleFunds(
+      openOrders.address,
+      wallet.publicKey,
+      baseCurrencyAccountPubkey,
+      quoteCurrencyAccountPubkey,
+      // @ts-ignore
+      referrerQuoteWallet,
+    )
   );
 
   let transaction = mergeTransactions([
@@ -161,7 +166,6 @@ export async function settleFunds({
 
   return await sendTransaction({
     transaction,
-    signers: settleFundsSigners,
     wallet,
     connection,
     sendingMessage: 'Settling funds...',
@@ -298,6 +302,7 @@ export async function settleAllFunds({
 
 export async function cancelOrder(params: {
   market: Market;
+  proxy: MarketProxy;
   connection: Connection;
   wallet: WalletAdapter;
   order: Order;
@@ -307,22 +312,33 @@ export async function cancelOrder(params: {
 
 export async function cancelOrders({
   market,
+  proxy,
   wallet,
   connection,
   orders,
 }: {
   market: Market;
+  proxy: MarketProxy;
   wallet: WalletAdapter;
   connection: Connection;
   orders: Order[];
 }) {
+
   const transaction = market.makeMatchOrdersTransaction(5);
   orders.forEach((order) => {
     transaction.add(
-      market.makeCancelOrderInstruction(connection, wallet.publicKey, order),
+      proxy.instruction.cancelOrder(
+        wallet.publicKey,
+        order,
+      ),
     );
   });
   transaction.add(market.makeMatchOrdersTransaction(5));
+
+  for(let i in transaction.instructions[2].keys) {
+    console.log(`Key: ${i}`, transaction.instructions[2].keys[i].pubkey.toString());
+  }
+
   return await sendTransaction({
     transaction,
     wallet,
@@ -342,6 +358,7 @@ export async function placeOrder({
   baseCurrencyAccount,
   quoteCurrencyAccount,
   feeDiscountPubkey = undefined,
+  proxy,
 }: {
   side: 'buy' | 'sell';
   price: number;
@@ -353,6 +370,7 @@ export async function placeOrder({
   baseCurrencyAccount: PublicKey | undefined;
   quoteCurrencyAccount: PublicKey | undefined;
   feeDiscountPubkey: PublicKey | undefined;
+  proxy: MarketProxy | undefined | null;
 }) {
   let formattedMinOrderSize =
     market?.minOrderSize?.toFixed(getDecimalCount(market.minOrderSize)) ||
@@ -405,7 +423,6 @@ export async function placeOrder({
   const transaction = new Transaction();
   const signers: Account[] = [];
 
-  const initialTransaction = new Transaction();
   if (!baseCurrencyAccount) {
     const {
       transaction: createAccountTransaction,
@@ -415,7 +432,7 @@ export async function placeOrder({
       wallet,
       mintPublicKey: market.baseMintAddress,
     });
-    initialTransaction.add(createAccountTransaction);
+    transaction.add(createAccountTransaction);
     baseCurrencyAccount = newAccountPubkey;
   }
   if (!quoteCurrencyAccount) {
@@ -427,7 +444,7 @@ export async function placeOrder({
       wallet,
       mintPublicKey: market.quoteMintAddress,
     });
-    initialTransaction.add(createAccountTransaction);
+    transaction.add(createAccountTransaction);
     quoteCurrencyAccount = newAccountPubkey;
   }
 
@@ -439,10 +456,30 @@ export async function placeOrder({
     });
     return;
   }
-  const gatewayToken = await findGatewayToken(connection, owner, gatekeeperNetwork);
-  if (!gatewayToken){
-    throw new Error(`No On-Chain gateway token for \`${owner.toBase58()}\``);
+
+  if (!proxy?.proxyProgramId) {
+    notify({
+      message: 'No proxy program found.',
+      type: 'error',
+    });
+    return;
   }
+
+  console.group('placeOrder');
+  const openOrdersAddressKey = await OpenOrdersPda.openOrdersAddress(
+    market.address,
+    owner,
+    proxy.dexProgramId,
+    proxy.proxyProgramId
+  );
+  console.log(`openOrdersAddressKey: ${openOrdersAddressKey.toString()}`);
+
+  const openOrders = await market.findOpenOrdersAccountsForOwner(
+    connection,
+    openOrdersAddressKey,
+  );
+  console.log(`openOrdersLength: ${openOrders.length}`);
+
   const params: OrderParams<PublicKey> = {
     owner,
     payer,
@@ -451,69 +488,72 @@ export async function placeOrder({
     size,
     orderType,
     feeDiscountPubkey: feeDiscountPubkey || null,
-    gatewayToken: gatewayToken.publicKey,
+    openOrdersAddressKey,
+    // clientId: new BN(997), // (997),
+    selfTradeBehavior: 'abortTransaction',
   };
-  console.log(params);
+
+  console.log(`newOrderV3 params`, params);
 
   const matchOrderstransaction = market.makeMatchOrdersTransaction(5);
   transaction.add(matchOrderstransaction);
+
+  if (openOrders.length === 0) {
+    console.log(`initOpenOrders`);
+    transaction.add(
+      proxy.instruction.initOpenOrders(
+        wallet.publicKey,
+        proxy.market.address,
+        proxy.market.address, // Dummy. Replaced by middleware.
+        proxy.market.address // Dummy. Replaced by middleware.
+      )
+    );
+  }
+
   const startTime = getUnixTs();
-  let {
-    transaction: placeOrderTx,
-    signers: placeOrderSigners,
-  } = await market.makePlaceOrderTransaction(
-    connection,
-    params,
-    120_000,
-    120_000,
+
+  transaction.add(
+    await proxy.instruction.newOrderV3({
+      ...params,
+    })
   );
+
+  for(let ix in transaction.instructions) {
+    console.log(`Txi ${ix} data ${transaction.instructions[ix].data.toString('hex')}`);
+    console.log(`Txi ${ix} keys:`);
+    for(let key in transaction.instructions[ix].keys) {
+      console.log(` ${transaction.instructions[ix].keys[key]?.pubkey?.toString()}`);
+    }
+  }
+
   const endTime = getUnixTs();
   console.log(`Creating order transaction took ${endTime - startTime}`);
-  transaction.add(placeOrderTx);
   transaction.add(market.makeMatchOrdersTransaction(5));
-  signers.push(...placeOrderSigners);
+  console.groupEnd();
 
-  if (initialTransaction.instructions.length > 0){
-    const transactions = await signTransactions({
-      transactionsAndSigners: [
-        {
-          transaction: initialTransaction,
-        },
-        {
-          transaction,
-          signers,
-        }
-      ],
-      wallet,
-      connection,
-    });
-    if (transactions.length !== 2){
-      notify({
-        message: `Transaction count of ${formattedTickSize} unexpected, expected 2`,
-        type: 'error',
-      });
-      return;
+  return await sendTransaction({
+    transaction,
+    wallet,
+    connection,
+    signers,
+    sendingMessage: 'Sending order...',
+  });
+}
+
+async function getVaultOwnerAndNonce(marketPublicKey, dexProgramId) {
+  const nonce = new BN(0);
+  while (nonce.toNumber() < 255) {
+    try {
+      const vaultOwner = await PublicKey.createProgramAddress(
+        [marketPublicKey.toBuffer(), nonce.toArrayLike(Buffer, "le", 8)],
+        dexProgramId
+      );
+      return [vaultOwner, nonce];
+    } catch (e) {
+      nonce.iaddn(1);
     }
-    await sendSignedTransaction({
-      signedTransaction: transactions[0],
-      connection,
-      sendingMessage: 'Creating needed token accounts...',
-    });
-    return await sendSignedTransaction({
-      signedTransaction: transactions[1],
-      connection,
-      sendingMessage: 'Sending order...',
-    })
   }
-  else {
-    return await sendTransaction({
-      transaction,
-      wallet,
-      connection,
-      signers,
-      sendingMessage: 'Sending order...',
-    });
-  }
+  throw new Error("Unable to find nonce");
 }
 
 export async function listMarket({
@@ -524,6 +564,7 @@ export async function listMarket({
   baseLotSize,
   quoteLotSize,
   dexProgramId,
+  proxyProgramId,
 }: {
   connection: Connection;
   wallet: WalletAdapter;
@@ -532,6 +573,7 @@ export async function listMarket({
   baseLotSize: number;
   quoteLotSize: number;
   dexProgramId: PublicKey;
+  proxyProgramId: PublicKey;
 }) {
   const market = new Account();
   const requestQueue = new Account();
@@ -543,21 +585,10 @@ export async function listMarket({
   const feeRateBps = 0;
   const quoteDustThreshold = new BN(100);
 
-  async function getVaultOwnerAndNonce() {
-    const nonce = new BN(0);
-    while (true) {
-      try {
-        const vaultOwner = await PublicKey.createProgramAddress(
-          [market.publicKey.toBuffer(), nonce.toArrayLike(Buffer, 'le', 8)],
-          dexProgramId,
-        );
-        return [vaultOwner, nonce];
-      } catch (e) {
-        nonce.iaddn(1);
-      }
-    }
-  }
-  const [vaultOwner, vaultSignerNonce] = await getVaultOwnerAndNonce();
+  const [vaultOwner, vaultSignerNonce] = await getVaultOwnerAndNonce(
+    market.publicKey,
+    dexProgramId
+  );
 
   const tx1 = new Transaction();
   tx1.add(
@@ -593,9 +624,9 @@ export async function listMarket({
       fromPubkey: wallet.publicKey,
       newAccountPubkey: market.publicKey,
       lamports: await connection.getMinimumBalanceForRentExemption(
-        Market.getLayout(dexProgramId).span,
+        MARKET_STATE_LAYOUT_V3.span,
       ),
-      space: Market.getLayout(dexProgramId).span,
+      space: MARKET_STATE_LAYOUT_V3.span,
       programId: dexProgramId,
     }),
     SystemProgram.createAccount({
@@ -626,9 +657,6 @@ export async function listMarket({
       space: 65536 + 12,
       programId: dexProgramId,
     }),
-  );
-  const tx3 = new Transaction();
-  tx3.add(
     DexInstructions.initializeMarket({
       market: market.publicKey,
       requestQueue: requestQueue.publicKey,
@@ -645,19 +673,18 @@ export async function listMarket({
       vaultSignerNonce,
       quoteDustThreshold,
       programId: dexProgramId,
-      gatekeeper: gatekeeperNetwork,
+      authority: await OpenOrdersPda.marketAuthority(
+        market.publicKey,
+        dexProgramId,
+        proxyProgramId
+      ),
+      pruneAuthority: await Identity.pruneAuthority(
+        market.publicKey,
+        dexProgramId,
+        proxyProgramId
+      ),
     }),
   );
-  tx3.instructions[0].keys = [
-    {
-      pubkey: new PublicKey("DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY"),
-      isSigner: false,
-      isWritable: false,
-    },
-    ...tx3.instructions[0].keys,
-  ];
-
-  tx3.instructions[0].programId = new PublicKey("DQJPbP4enjKjKQaWMZjq6dSJYLJeMpY1YPCEZRWKDECb");
 
   const signedTransactions = await signTransactions({
     transactionsAndSigners: [
@@ -666,16 +693,11 @@ export async function listMarket({
         transaction: tx2,
         signers: [market, requestQueue, eventQueue, bids, asks],
       },
-      {
-        transaction: tx3,
-        signers: [],
-      },
     ],
     wallet,
     connection,
   });
   for (let signedTransaction of signedTransactions) {
-    console.log('sending');
     await sendSignedTransaction({
       signedTransaction,
       connection,
@@ -817,7 +839,7 @@ export async function sendSignedTransaction({
   const txid: TransactionSignature = await connection.sendRawTransaction(
     rawTransaction,
     {
-      skipPreflight: true,
+      skipPreflight: false,
     },
   );
   if (sendNotification) {

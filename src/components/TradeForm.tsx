@@ -52,7 +52,7 @@ export default function TradeForm({
   ) => void;
 }) {
   const [side, setSide] = useState<'buy' | 'sell'>('buy');
-  const { baseCurrency, quoteCurrency, market } = useMarket();
+  const { baseCurrency, quoteCurrency, market, proxy } = useMarket();
   const baseCurrencyBalances = useSelectedBaseCurrencyBalances();
   const quoteCurrencyBalances = useSelectedQuoteCurrencyBalances();
   const baseCurrencyAccount = useSelectedBaseCurrencyAccount();
@@ -256,6 +256,7 @@ export default function TradeForm({
         baseCurrencyAccount: baseCurrencyAccount?.pubkey,
         quoteCurrencyAccount: quoteCurrencyAccount?.pubkey,
         feeDiscountPubkey: feeDiscountKey,
+        proxy
       });
       refreshCache(tuple('getTokenAccounts', wallet, connected));
       setPrice(undefined);

@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { Routes } from './routes';
 import { PreferencesProvider } from './utils/preferences';
 import { ReferrerProvider } from './utils/referrer';
+import { ProxyProvider } from './utils/proxy';
 
 export default function App() {
   return (
@@ -17,11 +18,13 @@ export default function App() {
         <ConnectionProvider>
           <ReferrerProvider>
             <WalletProvider>
-              <PreferencesProvider>
-                <Suspense fallback={() => <Spin size="large" />}>
-                  <Routes />
-                </Suspense>
-              </PreferencesProvider>
+              <ProxyProvider>
+                <PreferencesProvider>
+                  <Suspense fallback={() => <Spin size="large" />}>
+                    <Routes />
+                  </Suspense>
+                </PreferencesProvider>
+              </ProxyProvider>
             </WalletProvider>
           </ReferrerProvider>
         </ConnectionProvider>
