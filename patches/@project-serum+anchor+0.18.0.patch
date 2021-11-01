@@ -1,0 +1,26 @@
+diff --git a/node_modules/@project-serum/anchor/dist/cjs/idl.d.ts b/node_modules/@project-serum/anchor/dist/cjs/idl.d.ts
+index d6499ed..e1c57ac 100644
+--- a/node_modules/@project-serum/anchor/dist/cjs/idl.d.ts
++++ b/node_modules/@project-serum/anchor/dist/cjs/idl.d.ts
+@@ -68,7 +68,7 @@ export declare type IdlTypeVec = {
+     vec: IdlType;
+ };
+ export declare type IdlTypeArray = {
+-    array: [idlType: IdlType, size: number];
++    array: [];
+ };
+ export declare type IdlEnumVariant = {
+     name: string;
+diff --git a/node_modules/@project-serum/anchor/dist/cjs/program/namespace/types.d.ts b/node_modules/@project-serum/anchor/dist/cjs/program/namespace/types.d.ts
+index 9262338..64a2b35 100644
+--- a/node_modules/@project-serum/anchor/dist/cjs/program/namespace/types.d.ts
++++ b/node_modules/@project-serum/anchor/dist/cjs/program/namespace/types.d.ts
+@@ -63,7 +63,7 @@ export declare type DecodeType<T extends IdlType, Defined> = T extends keyof Typ
+ } ? Defined[T["option"]["defined"]] | null : T extends {
+     vec: keyof TypeMap;
+ } ? TypeMap[T["vec"]][] : T extends {
+-    array: [defined: keyof TypeMap, size: number];
++    array: [];
+ } ? TypeMap[T["array"][0]][] : unknown;
+ /**
+  * Tuple of arguments.
