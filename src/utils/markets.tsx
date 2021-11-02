@@ -265,10 +265,11 @@ export function MarketProvider({ marketAddress, setMarketAddress, children }) {
     (async () => {
       const foundGatewayToken = await findGatewayToken(connection, wallet.publicKey, GATEKEEPER_NETWORK);
       if (foundGatewayToken && foundGatewayToken.publicKey.toBase58() !== gatewayToken?.toBase58()) {
+        // console.log(`Found Gateway Token for ${wallet.publicKey}: ${foundGatewayToken.publicKey}`)
         setGatewayToken(foundGatewayToken.publicKey)
       }
     })();
-  }, [marketInfo, wallet, setGatewayToken, gatewayToken, connection])
+  }, [marketInfo, wallet?.publicKey, setGatewayToken, gatewayToken, connection])
 
   // Replace existing market with a non-deprecated one on first load
   useEffect(() => {
